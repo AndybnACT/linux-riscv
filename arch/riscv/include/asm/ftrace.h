@@ -20,10 +20,9 @@ extern void *return_address(unsigned int level);
 #define ftrace_return_address(n) return_address(n)
 
 void _mcount(void);
-static inline unsigned long ftrace_call_adjust(unsigned long addr)
-{
-	return addr;
-}
+unsigned long ftrace_call_adjust(unsigned long addr);
+unsigned long arch_ftrace_get_symaddr(unsigned long fentry_ip);
+#define ftrace_get_symaddr(fentry_ip) arch_ftrace_get_symaddr(fentry_ip)
 
 /*
  * Let's do like x86/arm64 and ignore the compat syscalls.
@@ -80,6 +79,7 @@ struct dyn_arch_ftrace {
 #define JALR_T0			(0x000282e7)
 #define AUIPC_T0		(0x00000297)
 #define NOP4			(0x00000013)
+#define JALR_RANGE		(JALR_SIGN_MASK - 1)
 
 #define to_jalr_t0(offset)						\
 	(((offset & JALR_OFFSET_MASK) << JALR_SHIFT) | JALR_T0)
@@ -97,26 +97,14 @@ do {									\
 	call[1] = to_jalr_t0(offset);					\
 } while (0)
 
-#define to_jalr_ra(offset)						\
-	(((offset & JALR_OFFSET_MASK) << JALR_SHIFT) | JALR_RA)
-
-#define to_auipc_ra(offset)						\
-	((offset & JALR_SIGN_MASK) ?					\
-	(((offset & AUIPC_OFFSET_MASK) + AUIPC_PAD) | AUIPC_RA) :	\
-	((offset & AUIPC_OFFSET_MASK) | AUIPC_RA))
-
-#define make_call_ra(caller, callee, call)				\
-do {									\
-	unsigned int offset =						\
-		(unsigned long) callee - (unsigned long) caller;	\
-	call[0] = to_auipc_ra(offset);					\
-	call[1] = to_jalr_ra(offset);					\
-} while (0)
-
 /*
- * Let auipc+jalr be the basic *mcount unit*, so we make it 8 bytes here.
+ * Only the jalr insn in the auipc+jalr is patched, so we make it 4
+ * bytes here.
  */
-#define MCOUNT_INSN_SIZE 8
+#define MCOUNT_INSN_SIZE	4
+#define MCOUNT_AUIPC_SIZE	4
+#define MCOUNT_JALR_SIZE	4
+#define MCOUNT_NOP4_SIZE	4
 
 #ifndef __ASSEMBLY__
 struct dyn_ftrace;
